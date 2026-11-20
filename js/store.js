@@ -38,14 +38,20 @@ export const state = {
   products: new Map(),
   byBarcode: new Map(),
   cart: [],
+  deviceId: null,
 };
 
-export async function loadAll() {
-  const saved = (await db.kvGet('settings')) || {};
+export function applySettings(saved = {}) {
   const s = { ...DEFAULT_SETTINGS, ...saved };
   // Mezcla métodos guardados con los predeterminados (por si se añaden nuevos en futuras versiones).
   s.methods = DEFAULT_METHODS.map(d => ({ ...d, ...(saved.methods || []).find(m => m.id === d.id) }));
   state.settings = s;
+}
+
+export async function loadAll() {
+  state.deviceId = await db.kvGet('deviceId');
+  if (!state.deviceId) { state.deviceId = 'd' + Math.random().toString(36).slice(2, 10); await db.kvSet('deviceId', state.deviceId); }
+  applySettings((await db.kvGet('settings')) || {});
   state.rates = (await db.kvGet('rates')) || { values: {}, src: {}, dates: {}, fetchedAt: null };
   const prods = await db.all('products');
   state.products.clear(); state.byBarcode.clear();
@@ -82,6 +88,47 @@ export function searchProducts(q, limit = 30) {
   const first = words[0];
   out.sort((a, b) => (norm(b.name).startsWith(first) - norm(a.name).startsWith(first)) || a.name.localeCompare(b.name, 'es'));
   return out.slice(0, limit);
+}
+
+// ---------- Stock sincronizable ----------
+// stock = base (último conteo manual) + lo que cada equipo ha movido desde ese conteo.
+// Cada equipo solo toca su propio contador, así dos equipos vendiendo sin conexión no se pisan.
+function normStock(p) {
+  if (!p.base) p.base = { v: p.stock || 0, at: 0, snap: {} };
+  if (!p.deltas) p.deltas = {};
+  return p;
+}
+export function calcStock(p) {
+  normStock(p);
+  let s = p.base.v;
+  for (const [d, x] of Object.entries(p.deltas)) s += x.v - (p.base.snap[d] || 0);
+  return Math.round(s * 1000) / 1000;
+}
+export function adjustStock(p, qty) {
+  normStock(p);
+  const o = p.deltas[state.deviceId] || { v: 0, n: 0 };
+  p.deltas[state.deviceId] = { v: Math.round((o.v + qty) * 1000) / 1000, n: o.n + 1 };
+  p.stock = calcStock(p);
+}
+export function setStock(p, value) {
+  normStock(p);
+  const snap = {};
+  for (const [d, x] of Object.entries(p.deltas)) snap[d] = x.v;
+  p.base = { v: value, at: Date.now(), snap };
+  p.stock = calcStock(p);
+}
+// Une la versión local y la remota de un producto. Devuelve [fusionado, la remota estaba incompleta].
+export function mergeProduct(local, remote) {
+  normStock(local); normStock(remote);
+  const m = { ...((remote._u || 0) >= (local._u || 0) ? remote : local) };
+  m.deltas = { ...remote.deltas };
+  let behind = false;
+  for (const [d, x] of Object.entries(local.deltas)) if (!m.deltas[d] || x.n > m.deltas[d].n) { m.deltas[d] = x; behind = true; }
+  if (local.base.at > remote.base.at) { m.base = local.base; behind = true; } else m.base = remote.base;
+  m._u = Math.max(local._u || 0, remote._u || 0);
+  if (m._u !== (remote._u || 0)) behind = true;
+  m.stock = calcStock(m);
+  return [m, behind];
 }
 
 export const isLow = p => (p.stock ?? 0) <= (p.minStock ?? state.settings.lowStockDefault);

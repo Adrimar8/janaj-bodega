@@ -1,7 +1,7 @@
 // Pantalla de VENDER: escanear, consultar precio, carrito y cobro.
-import { state, cartTotals, commissionFor, rateLabel, rateValue, RATES, findByBarcode, searchProducts, cacheProduct, saveCart, isLow, activeRate, methodName } from '../store.js';
+import { state, adjustStock, cartTotals, commissionFor, rateLabel, rateValue, RATES, findByBarcode, searchProducts, cacheProduct, saveCart, isLow, activeRate, methodName } from '../store.js';
 import * as db from '../db.js';
-import { $, esc, fmtBs, fmtUsd, fmtNum, fmtQty, numIn, parseNum, r2, r3, modal, toast, confirmDialog, dayKey, icon } from '../ui.js';
+import { $, esc, fmtBs, fmtUsd, fmtNum, fmtQty, numIn, parseNum, r2, r3, modal, toast, confirmDialog, dayKey, icon, shortId } from '../ui.js';
 import { setViewScanHandler, pushScanHandler, camSupported, scanWithCamera } from '../scanner.js';
 import { openProductForm } from './inventory.js';
 
@@ -395,11 +395,11 @@ async function openCheckout() {
         for (const it of sale.items) {
           const p = await db.P(ps.get(it.pid));
           if (!p) continue;
-          p.stock = r3((p.stock || 0) - it.qty);
+          adjustStock(p, -it.qty);
           await db.P(ps.put(p));
           updated.push(p);
         }
-        if (fiadoUsd > 0) await db.P(t.objectStore('ledger').add({ customerId, ts: now, day: sale.day, type: 'cargo', usd: fiadoUsd, saleId: id, note: 'Venta #' + id }));
+        if (fiadoUsd > 0) await db.P(t.objectStore('ledger').add({ customerId, ts: now, day: sale.day, type: 'cargo', usd: fiadoUsd, saleId: id, note: 'Venta #' + shortId(id) }));
       });
       updated.forEach(cacheProduct);
       state.cart = []; saveCart();

@@ -1,8 +1,8 @@
 // Service worker: guarda la app en el equipo para que abra sin internet.
-const VERSION = 'janaj-v1.0.3';
+const VERSION = 'janaj-v1.1.0';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/main.js', 'js/db.js', 'js/ui.js', 'js/store.js', 'js/scanner.js',
+  'js/main.js', 'js/db.js', 'js/ui.js', 'js/store.js', 'js/scanner.js', 'js/sync.js', 'js/remote-firebase.js', 'js/firebase-config.js',
   'js/views/pos.js', 'js/views/inventory.js', 'js/views/rates.js', 'js/views/fiado.js',
   'js/views/caja.js', 'js/views/reports.js', 'js/views/settings.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',

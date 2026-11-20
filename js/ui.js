@@ -20,6 +20,8 @@ export function parseNum(v) {
   if (v.includes(',')) v = v.replace(/\./g, '').replace(',', '.');
   return Number(v);
 }
+// Número corto para mostrar (los ids nuevos son muy largos para que no choquen entre equipos).
+export const shortId = id => { const t = String(id); return t.length > 6 ? t.slice(-6) : t; };
 export const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
 export const r3 = n => Math.round((n + Number.EPSILON) * 1000) / 1000;
 

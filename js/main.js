@@ -1,7 +1,8 @@
 // Arranque de la app y navegación entre pantallas.
 import { state, loadAll, refreshRates, rateValue, rateLabel } from './store.js';
 import * as db from './db.js';
-import { $, esc, fmtNum, icon, closeAllModals } from './ui.js';
+import { $, esc, fmtNum, icon, closeAllModals, modalOpen } from './ui.js';
+import { sync, prepareSync, initSync } from './sync.js';
 import { setViewScanHandler } from './scanner.js';
 import { renderPOS } from './views/pos.js';
 import { renderInventory } from './views/inventory.js';
@@ -25,6 +26,12 @@ function renderNav() {
   $('#nav').innerHTML = Object.entries(routes).map(([k, r]) =>
     `<a href="#${k}" data-r="${k}" class="${r.desktopOnly ? 'desk-only' : ''}">${icon(r.icon)}<span>${r.label}</span></a>`).join('');
   $('#gear').innerHTML = icon('gear');
+}
+
+function rerender() {
+  const k = location.hash.slice(1) || 'vender';
+  const r = routes[k] || routes.vender;
+  try { r.render($('#main')); } catch (e) { console.error(e); }
 }
 
 function route() {
@@ -51,9 +58,17 @@ function renderChips() {
 function renderNet() {
   const on = navigator.onLine;
   const n = $('#net');
-  n.className = 'net ' + (on ? 'on' : 'off');
-  n.title = on ? 'Con internet' : 'Sin internet: la app sigue funcionando';
-  n.textContent = on ? '' : 'Sin internet';
+  const synced = ['ok', 'error', 'offline'].includes(sync.status);
+  n.className = 'net ' + (on ? 'on' : 'off') + (synced ? ' sync' : '') + (sync.status === 'error' && on && !sync.pending ? ' err' : '') + (sync.pending && on ? ' pend' : '');
+  let txt = on ? '' : 'Sin internet';
+  let title = on ? 'Con internet' : 'Sin internet: la app sigue funcionando';
+  if (synced) {
+    if (sync.pending) { txt = `${on ? '' : 'Sin internet · '}${sync.pending} por subir`; title = 'Cambios pendientes de subir a la nube'; }
+    else if (on && sync.status === 'ok') { txt = 'Sincronizado'; title = 'Todo sincronizado con la nube'; }
+    if (on && sync.status === 'error' && !sync.pending) { txt = 'Error de sincronización'; title = sync.error || ''; }
+  }
+  n.textContent = txt;
+  n.title = title;
 }
 
 async function renderBanner() {
@@ -66,6 +81,7 @@ async function renderBanner() {
 async function boot() {
   try {
     await loadAll();
+    await prepareSync();
   } catch (e) {
     $('#main').innerHTML = `<p class="bad pad">No se pudo abrir la base de datos: ${esc(e.message)}</p>`;
     return;
@@ -80,6 +96,15 @@ async function boot() {
   window.addEventListener('offline', renderNet);
   document.addEventListener('rates-updated', renderChips);
   document.addEventListener('backup-done', renderBanner);
+  document.addEventListener('sync-status', renderNet);
+  // Llegaron cambios de otro equipo: se refresca la pantalla si no se está escribiendo nada.
+  document.addEventListener('remote-changes', () => {
+    renderChips();
+    const a = document.activeElement;
+    const typing = a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT') && a.value;
+    if (!modalOpen() && !typing) rerender();
+  });
+  initSync();
   const tick = () => { if (navigator.onLine) refreshRates().catch(() => {}); };
   tick();
   setInterval(tick, 30 * 60 * 1000);

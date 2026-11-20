@@ -1,5 +1,5 @@
 // INVENTARIO: productos, stock, vencimientos y entradas de mercancía.
-import { state, cacheProduct, uncacheProduct, findByBarcode, searchProducts, isLow, expiryStatus, activeRate } from '../store.js';
+import { state, adjustStock, setStock, cacheProduct, uncacheProduct, findByBarcode, searchProducts, isLow, expiryStatus, activeRate } from '../store.js';
 import * as db from '../db.js';
 import { $, esc, fmtBs, fmtUsd, fmtQty, fmtDay, numIn, parseNum, r2, r3, modal, toast, confirmDialog, dayKey, icon } from '../ui.js';
 import { setViewScanHandler, pushScanHandler, camSupported, scanWithCamera } from '../scanner.js';
@@ -159,13 +159,15 @@ export function openProductForm(prefill = {}) {
         category: F('category').value.trim(),
         unit: F('unit').value,
         cost: cost >= 0 ? cost : null,
-        stock: Number.isFinite(stock) ? r3(stock) : 0,
         minStock: Number.isFinite(minStock) ? minStock : state.settings.lowStockDefault,
         expiry: F('expiry').value || null,
         exento: F('exento').checked,
         updatedAt: Date.now(),
       };
       if (barcode) obj.barcode = barcode; else delete obj.barcode;
+      // Solo se fija un nuevo conteo si el stock escrito es distinto del actual.
+      const newStock = Number.isFinite(stock) ? r3(stock) : 0;
+      if (isNew || newStock !== r3(obj.stock ?? 0)) setStock(obj, newStock);
       try {
         obj.id = await db.put('products', obj);
         cacheProduct(obj);
@@ -280,7 +282,7 @@ export async function openPurchase() {
         const ps = t.objectStore('products');
         for (const l of valid) {
           const p = await db.P(ps.get(l.pid)); if (!p) continue;
-          p.stock = r3((p.stock || 0) + l.qty);
+          adjustStock(p, l.qty);
           if (l.cost > 0) p.cost = l.cost;
           if (l.price >= 0 && Number.isFinite(l.price)) p.price = l.price;
           p.updatedAt = Date.now();

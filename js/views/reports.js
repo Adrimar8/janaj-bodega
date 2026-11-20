@@ -1,7 +1,7 @@
 // REPORTES: ventas, ganancias, comisiones e impuestos estimados por periodo.
-import { state, methodName, cacheProduct } from '../store.js';
+import { state, methodName, cacheProduct, adjustStock } from '../store.js';
 import * as db from '../db.js';
-import { $, esc, fmtBs, fmtUsd, fmtNum, fmtQty, fmtDay, fmtDateTime, r2, r3, modal, toast, confirmDialog, dayKey, downloadFile } from '../ui.js';
+import { $, esc, fmtBs, fmtUsd, fmtNum, fmtQty, fmtDay, fmtDateTime, r2, r3, modal, toast, confirmDialog, dayKey, downloadFile, shortId } from '../ui.js';
 import { setViewScanHandler } from '../scanner.js';
 
 let root, preset = 'hoy', from = dayKey(), to = dayKey();
@@ -100,7 +100,7 @@ async function draw() {
     ${days.length > 1 ? `<div class="card"><h2>Ventas por día ($)</h2><div class="bars">${days.map(([d, v]) => `<div class="bar" title="${fmtDay(d)}: ${fmtUsd(v)}"><div class="bar-v" style="height:${Math.max(2, v / maxDay * 100)}%"></div><span>${d.slice(8)}</span></div>`).join('')}</div></div>` : ''}
     <div class="card"><div class="card-h"><h2>Ventas</h2><button class="btn sm" id="csv">Exportar CSV</button></div>
       <div class="tbl-wrap"><table class="tbl hover"><thead><tr><th>#</th><th>Fecha</th><th>Pago</th><th class="num">Total</th></tr></thead><tbody>
-      ${allSales.slice().reverse().slice(0, 200).map(x => `<tr data-id="${x.id}" class="${x.voided ? 'voided' : ''}"><td>${x.id}</td><td class="small">${fmtDateTime(x.ts)}</td>
+      ${allSales.slice().reverse().slice(0, 200).map(x => `<tr data-id="${x.id}" class="${x.voided ? 'voided' : ''}"><td>${shortId(x.id)}</td><td class="small">${fmtDateTime(x.ts)}</td>
         <td class="small">${x.voided ? '<b class="bad">ANULADA</b>' : x.payments.map(p => esc(methodName(p.method))).join(' + ')}</td><td class="num">${fmtUsd(x.totalUsd)}<div class="muted small">${fmtBs(x.totalBs)}</div></td></tr>`).join('')}
       </tbody></table></div></div>`}`;
 
@@ -116,7 +116,7 @@ async function draw() {
 
 function saleDetail(x) {
   const m = modal({
-    title: `Venta #${x.id}${x.voided ? ' (anulada)' : ''}`, wide: true,
+    title: `Venta #${shortId(x.id)}${x.voided ? ' (anulada)' : ''}`, wide: true,
     body: `<p class="muted">${fmtDateTime(x.ts)} · tasa ${fmtNum(x.rate)} (${esc(x.rateKey)})</p>
       <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Producto</th><th class="num">Cant.</th><th class="num">Precio</th><th class="num">Total</th></tr></thead><tbody>
       ${x.items.map(i => `<tr><td>${esc(i.name)}</td><td class="num">${fmtQty(i.qty, i.unit)}</td><td class="num">${fmtUsd(i.price)}</td><td class="num">${fmtUsd(i.totalUsd)}</td></tr>`).join('')}
@@ -140,7 +140,7 @@ async function voidSale(x, m) {
       const ps = t.objectStore('products');
       for (const it of sale.items) {
         const p = await db.P(ps.get(it.pid)); if (!p) continue;
-        p.stock = r3((p.stock || 0) + it.qty);
+        adjustStock(p, it.qty);
         await db.P(ps.put(p)); updated.push(p);
       }
       const ls = t.objectStore('ledger');
