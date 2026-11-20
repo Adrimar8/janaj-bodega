@@ -1,6 +1,6 @@
 # JANAJ Bodega — Estado actual
 
-_Última actualización: 21 de noviembre de 2026 · versión `janaj-v1.1.1`_
+_Última actualización: 21 de noviembre de 2026 · versión `janaj-v1.2.0`_
 
 ## Qué es
 
@@ -41,7 +41,7 @@ App de punto de venta e inventario para la bodega JANAJ (Venezuela). Es una web 
 | Pantalla | Qué hace |
 |---|---|
 | **Vender** | Escanear o buscar productos, consultar precio, carrito (con productos a peso), cobro mixto y vuelto |
-| **Inventario** | Alta y edición de productos, stock, stock mínimo, vencimientos, entradas de mercancía y proveedores |
+| **Inventario** | Alta y edición de productos, stock, stock mínimo, vencimientos, entradas de mercancía, proveedores e importación/exportación desde Excel (CSV) |
 | **Tasas** | Descarga BCV $/€ y paralelo (`ve.dolarapi.com`) y USDT (`criptoya.com`, Binance P2P). Sin internet usa las últimas guardadas o se meten a mano. Incluye conversor |
 | **Fiado** | Cuentas de clientes. La deuda se guarda **en dólares** para que no pierda valor |
 | **Caja** | Cierre diario: efectivo esperado por moneda y total por método de pago |
@@ -74,6 +74,7 @@ js/store.js            ajustes, tasas, productos y cálculos (IVA, comisiones)
 js/scanner.js          lector USB/Bluetooth (como teclado) y cámara (BarcodeDetector)
 js/ui.js               formato, modales, iconos
 js/views/*.js          vender, inventario, tasas, fiado, caja, reportes, ajustes
+js/views/import.js     importar/exportar productos en CSV (Excel)
 ```
 
 ## Qué se ha hecho
@@ -85,21 +86,24 @@ js/views/*.js          vender, inventario, tasas, fiado, caja, reportes, ajustes
    - Restricción de aplicaciones → Sitios web: `https://adrimar8.github.io/*`, `http://localhost/*`, `https://janaj-27925.firebaseapp.com/*`.
    - Restricción de API: solo Identity Toolkit API, Token Service API y Cloud Firestore API (antes tenía 25).
    - Comprobado con `curl`: sin Referer → 403 `ACCESS_DENIED`; Referer ajeno → 403 `API_KEY_HTTP_REFERRER_BLOCKED`; Referer de GitHub Pages → la clave pasa.
+5. **21 nov 2026 · Firebase verificado**: correo/contraseña habilitado, Firestore creado (vacío) con las reglas del README y `adrimar8.github.io` en dominios autorizados.
+6. **21 nov 2026 · v1.2.0 · importar desde Excel**: Inventario → "Importar Excel".
+   - Lee CSV con `;`, `,` o tabulador, en UTF-8 o ANSI (Windows-1252). Las cabeceras se reconocen con o sin tildes.
+   - Si el producto ya existe (mismo código o, si no tiene código, mismo nombre) se actualiza; si no, se crea. Las celdas vacías no borran nada.
+   - Antes de guardar enseña cuántos productos se crean, cuántos se actualizan y qué filas tienen errores (sin precio, fecha imposible, código estropeado por Excel `7,59E+12`, repetidos). Las filas con error se saltan.
+   - Incluye plantilla descargable y exportación de los productos actuales, para editarlos en Excel y volver a importarlos.
 
 ## Qué falta
 
-### Por verificar en Firebase (no consta que esté hecho)
-- [ ] Authentication → método **Correo electrónico/contraseña** habilitado.
-- [ ] Firestore creado (ubicación `nam5` o `us-east1`) con las **reglas** del README publicadas. Es la protección real de los datos: la restricción de la clave se puede saltar falsificando el Referer.
-- [ ] Authentication → Dominios autorizados → `adrimar8.github.io`.
-- [ ] Prueba completa: crear la cuenta de la bodega en el ordenador, entrar desde el móvil y ver que una venta aparece en los dos.
+### Puesta en marcha
+- [ ] Crear la cuenta de la bodega en el ordenador (Ajustes → "Crear cuenta de la bodega"), entrar desde el móvil con la misma cuenta y comprobar que una venta aparece en los dos.
+- [ ] Probar la importación con la lista real de productos del dueño.
 
 ### Pendiente con el dueño o el contable
 - [ ] Comisiones reales de Banesco (punto) y BDV (biopago), sacadas del estado de cuenta. Después, marcar `commissionsVerified`.
 - [ ] Régimen fiscal: IVA incluido o sumado, y si aplica IGTF.
 
-### Funcionalidad
-- [ ] Carga masiva de productos desde Excel/CSV.
+### Opcional
 - [ ] Si se prueba en local con puerto (p. ej. `localhost:8765`), añadir `http://localhost:*/*` a los sitios permitidos de la clave.
 
 ## Notas de mantenimiento

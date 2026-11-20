@@ -65,11 +65,10 @@ js/store.js       ajustes, tasas, productos, cálculos (IVA, comisiones)
 js/scanner.js     lector USB/Bluetooth (teclado) y cámara (BarcodeDetector)
 js/ui.js          formato, modales, iconos
 js/views/*.js     vender, inventario, tasas, fiado, caja, reportes, ajustes
+js/views/import.js  importar/exportar productos en CSV (Excel)
 ```
 
 ## Pendiente
 
 - Confirmar las comisiones reales de Banesco (punto) y BDV (biopago). Ahora son estimaciones: 1,5 %.
 - Confirmar el régimen fiscal con el contable (IVA incluido o sumado, IGTF).
-- Crear el proyecto de Firebase y poner su configuración en `js/firebase-config.js`.
-- Carga masiva de productos desde Excel/CSV.

@@ -2,6 +2,7 @@
 import { state, adjustStock, setStock, cacheProduct, uncacheProduct, findByBarcode, searchProducts, isLow, expiryStatus, activeRate } from '../store.js';
 import * as db from '../db.js';
 import { $, esc, fmtBs, fmtUsd, fmtQty, fmtDay, numIn, parseNum, r2, r3, modal, toast, confirmDialog, dayKey, icon } from '../ui.js';
+import { openImport } from './import.js';
 import { setViewScanHandler, pushScanHandler, camSupported, scanWithCamera } from '../scanner.js';
 
 let root, tab = 'productos', filter = 'todos', query = '';
@@ -11,6 +12,7 @@ export function renderInventory(main) {
   main.innerHTML = `<div class="page">
     <div class="page-h"><h1>Inventario</h1>
       <div class="actions">
+        <button class="btn" id="importar">${icon('upload')} Importar Excel</button>
         <button class="btn" id="entrada">${icon('inbox')} Entrada de mercancía</button>
         <button class="btn primary" id="nuevo">${icon('plus')} Nuevo producto</button>
       </div></div>
@@ -19,6 +21,7 @@ export function renderInventory(main) {
   </div>`;
   $('#nuevo', main).addEventListener('click', async () => { if (await openProductForm()) draw(); });
   $('#entrada', main).addEventListener('click', () => openPurchase());
+  $('#importar', main).addEventListener('click', async () => { if (await openImport()) draw(); });
   main.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => { tab = b.dataset.tab; draw(); }));
   setViewScanHandler(async code => {
     const p = findByBarcode(code);
@@ -70,7 +73,8 @@ function drawList() {
   if (!state.products.size) {
     el.innerHTML = `<div class="empty card">
       <p><b>Aún no hay productos.</b></p>
-      <p>La forma más rápida de cargarlos: escanea cada producto con el lector desde esta pantalla. Si el código no existe, se abre el formulario con el código ya puesto.</p></div>`;
+      <p>La forma más rápida de cargarlos: escanea cada producto con el lector desde esta pantalla. Si el código no existe, se abre el formulario con el código ya puesto.</p>
+      <p>Si ya tienes la lista en Excel, usa <b>Importar Excel</b>.</p></div>`;
     return;
   }
   el.innerHTML = !total ? '<p class="empty">No hay productos con ese filtro.</p>' : `
