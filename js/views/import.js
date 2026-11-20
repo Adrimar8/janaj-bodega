@@ -190,7 +190,7 @@ export function openImport() {
           <button class="btn" id="tpl">${icon('download')} Descargar plantilla</button>
           ${state.products.size ? `<button class="btn" id="exp">${icon('download')} Exportar productos actuales</button>` : ''}
         </div>
-        <div id="prev"></div>`,
+        <div id="prev" style="margin-top:16px"></div>`,
       actions: [{ label: 'Cancelar', cls: 'ghost' }, { label: 'Importar', cls: 'primary', id: 'impOk', onClick: close => go(close) }],
     });
     const B = m.body;
