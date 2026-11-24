@@ -1,6 +1,6 @@
 # JANAJ Bodega — Estado actual
 
-_Última actualización: 24 de noviembre de 2026 · versión `janaj-v1.3.1`_
+_Última actualización: 24 de noviembre de 2026 · versión `janaj-v1.4.0`_
 
 ## Qué es
 
@@ -57,7 +57,7 @@ App de punto de venta e inventario para la bodega JANAJ (Venezuela). Es una web 
 ### Sincronización
 - Cada equipo trabaja con sus datos locales. Cada cambio se apunta en una cola (`outbox`) dentro de la misma transacción y se sube a Firestore cuando hay internet. Los cambios de otros equipos llegan en tiempo real.
 - Conflictos: gana el último cambio. El **stock** no se pisa: cada equipo lleva su contador de movimientos y el stock es "último conteo + movimientos de todos los equipos desde ese conteo".
-- Datos en `shops/{uid}/docs/{tabla~id}`. Hay una cuenta por bodega y se usa la misma en todos los equipos.
+- Datos en `shops/{uid}/docs/{tabla~id}`. El carrito en vivo está en `live~cart` (sin campo `t`, así no entra en la descarga de cambios). Hay una cuenta por bodega y se usa la misma en todos los equipos.
 - Primer equipo: Ajustes → "Crear cuenta de la bodega" (sube sus datos). Los demás: "Entrar" (descargan los datos).
 
 ### Estructura de archivos
@@ -97,6 +97,7 @@ js/views/import.js     importar/exportar productos en CSV (Excel)
    - Ficha de producto: precio y costo se pueden escribir en $ o Bs (se guardan en $ a la tasa actual). El costo puede ser por unidad o por paquete/caja/oferta indicando cuántas unidades trae; se guarda el costo por unidad y `packQty`.
 8. **24 nov 2026 · v1.3.1 · Entrada de mercancía**: montos en $ o Bs (se guardan en $) y cada línea se puede comprar por unidad o por paquete ("trae N unds"); al stock entran las unidades sueltas y se guarda el costo por unidad.
    - Sincronización probada entre ordenador y móvil: funciona.
+9. **24 nov 2026 · v1.4.0 · carrito compartido en vivo**: el carrito de Vender se sincroniza al momento entre equipos (documento `shops/{uid}/docs/live~cart`, fuera de la cola `outbox`; gana el último cambio). Sirve para escanear con el móvil y cobrar en el ordenador. Solo funciona con internet; sin conexión cada equipo sigue con su carrito.
 
 ## Qué falta
 

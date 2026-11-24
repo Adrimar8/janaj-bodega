@@ -13,7 +13,14 @@ export async function createRemote(config) {
   const col = () => fsM.collection(fs, 'shops', auth.currentUser.uid, 'docs');
   const toUser = u => u ? { uid: u.uid, email: u.email } : null;
 
+  // Carrito compartido en vivo: un documento aparte, sin campo t para no entrar en la cola de cambios.
+  const cartRef = () => fsM.doc(fs, 'shops', auth.currentUser.uid, 'docs', 'live~cart');
+
   return {
+    putCart: c => fsM.setDoc(cartRef(), c),
+    watchCart: (onCart, onErr) => fsM.onSnapshot(cartRef(), d => {
+      if (d.exists() && !d.metadata.hasPendingWrites) onCart(d.data());
+    }, onErr),
     currentUser: () => new Promise(res => { const off = authM.onAuthStateChanged(auth, u => { off(); res(toUser(u)); }); }),
     signUp: async (e, p) => toUser((await authM.createUserWithEmailAndPassword(auth, e, p)).user),
     signIn: async (e, p) => toUser((await authM.signInWithEmailAndPassword(auth, e, p)).user),

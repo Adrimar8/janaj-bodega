@@ -2,7 +2,7 @@
 // Cada equipo trabaja con sus datos locales; los cambios se suben cuando hay internet y los de los
 // otros equipos llegan en tiempo real.
 import * as db from './db.js';
-import { state, cacheProduct, uncacheProduct, mergeProduct, applySettings, loadAll } from './store.js';
+import { state, cacheProduct, uncacheProduct, mergeProduct, applySettings, loadAll, saveCart, onCartSave } from './store.js';
 import { firebaseConfig } from './firebase-config.js';
 
 export const sync = { status: 'off', user: null, lastSync: null, pending: 0, error: null };
@@ -44,8 +44,37 @@ export async function initSync() {
   }
 }
 
+// ---------- Carrito en vivo entre equipos ----------
+// El último cambio gana. Si llega una línea de un producto que aún no está aquí, se guarda y se aplica cuando llegue.
+let unsubCart = null, remoteCart = null, cartTimer = null;
+function applyCart() {
+  if (!remoteCart) return;
+  state.cart = (remoteCart.lines || []).filter(l => state.products.has(l.pid));
+  if (state.cart.length === (remoteCart.lines || []).length) remoteCart = null;
+  saveCart(true);
+  document.dispatchEvent(new CustomEvent('remote-changes'));
+}
+function watchCart() {
+  if (unsubCart) unsubCart();
+  if (!remote.watchCart) return;
+  unsubCart = remote.watchCart(c => {
+    if (c.dev === state.deviceId) return;
+    remoteCart = c; applyCart();
+  }, () => {});
+}
+onCartSave(cart => {
+  remoteCart = null;
+  if (!remote || !remote.putCart || !sync.user) return;
+  clearTimeout(cartTimer);
+  cartTimer = setTimeout(() => {
+    const lines = JSON.parse(JSON.stringify(state.cart));
+    remote.putCart({ lines, dev: state.deviceId, at: Date.now() }).catch(() => {});
+  }, 250);
+});
+
 function start() {
   if (unsub) unsub();
+  watchCart();
   sync.status = 'ok'; emit();
   db.kvGet('syncCursor').then(cursor => {
     let chain = Promise.resolve();
@@ -140,6 +169,7 @@ async function applyRemote(docs) {
   removed.forEach(uncacheProduct);
   if (settings) applySettings(settings);
   state.cart = state.cart.filter(l => state.products.has(l.pid));
+  applyCart();
   document.dispatchEvent(new CustomEvent('remote-changes'));
   schedulePush();
 }
@@ -199,6 +229,7 @@ async function replaceLocal() {
 
 export async function logout() {
   if (unsub) { unsub(); unsub = null; }
+  if (unsubCart) { unsubCart(); unsubCart = null; }
   clearInterval(timer);
   window.removeEventListener('online', push);
   try { await (await getRemote()).signOut(); } catch { /* sin conexión */ }

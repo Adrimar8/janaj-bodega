@@ -61,7 +61,13 @@ export async function loadAll() {
 }
 
 export const saveSettings = () => db.kvSet('settings', state.settings);
-export function saveCart() { try { localStorage.setItem('janaj-cart', JSON.stringify(state.cart)); } catch { /* sin almacenamiento */ } }
+// fromRemote = el carrito llegó de otro equipo (no se vuelve a subir).
+let cartListener = null;
+export const onCartSave = fn => { cartListener = fn; };
+export function saveCart(fromRemote = false) {
+  try { localStorage.setItem('janaj-cart', JSON.stringify(state.cart)); } catch { /* sin almacenamiento */ }
+  if (!fromRemote && cartListener) cartListener(state.cart);
+}
 
 // ---------- Productos ----------
 export function cacheProduct(p) {
