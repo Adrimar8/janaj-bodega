@@ -1,6 +1,6 @@
 # JANAJ Bodega — Estado actual
 
-_Última actualización: 24 de noviembre de 2026 · versión `janaj-v1.3.0`_
+_Última actualización: 24 de noviembre de 2026 · versión `janaj-v1.3.1`_
 
 ## Qué es
 
@@ -95,6 +95,7 @@ js/views/import.js     importar/exportar productos en CSV (Excel)
 7. **24 nov 2026 · v1.3.0**:
    - Icono "maskable" con margen (`icons/icon-maskable-*.png`) para que no se corte en el círculo de Android.
    - Ficha de producto: precio y costo se pueden escribir en $ o Bs (se guardan en $ a la tasa actual). El costo puede ser por unidad o por paquete/caja/oferta indicando cuántas unidades trae; se guarda el costo por unidad y `packQty`.
+8. **24 nov 2026 · v1.3.1 · Entrada de mercancía**: montos en $ o Bs (se guardan en $) y cada línea se puede comprar por unidad o por paquete ("trae N unds"); al stock entran las unidades sueltas y se guarda el costo por unidad.
    - Sincronización probada entre ordenador y móvil: funciona.
 
 ## Qué falta

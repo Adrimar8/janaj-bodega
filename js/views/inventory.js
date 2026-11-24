@@ -217,6 +217,7 @@ export async function openPurchase() {
     body: `<div class="grid2">
         <label class="field"><span>Proveedor</span><input class="input" id="prov" list="provlist" placeholder="Ej.: Distribuidora…"><datalist id="provlist">${sups.map(s => `<option value="${esc(s)}">`).join('')}</datalist></label>
         <label class="field"><span>Fecha</span><input type="date" class="input" id="pdate" value="${dayKey()}"></label>
+        <label class="field"><span>Montos en</span><select class="input" id="pcur"><option value="usd">Dólares ($)</option><option value="bs">Bolívares (Bs)</option></select></label>
       </div>
       <label class="field"><span>Añadir producto: escanéalo o búscalo</span><span class="row"><input class="input" id="psearch" data-scan-own autocomplete="off" placeholder="Nombre o código">${camSupported ? `<button type="button" class="btn" id="pcam2">${icon('camera')}</button>` : ''}</span></label>
       <div id="pres" class="results"></div>
@@ -226,6 +227,24 @@ export async function openPurchase() {
   });
   const B = m.body;
   const search = $('#psearch', B), res = $('#pres', B);
+  // Costos y precios de las líneas están en la moneda elegida; se guardan en $.
+  const rate = activeRate();
+  let cur = 'usd';
+  const fromUsd = v => cur === 'bs' ? v * rate : v;
+  const toUsd = v => cur === 'bs' ? v / rate : v;
+  const cs = () => cur === 'bs' ? 'Bs' : '$';
+  const fmtCur = v => cur === 'bs' ? fmtBs(v) : fmtUsd(v);
+  const round4 = n => Math.round(n * 10000) / 10000;
+  $('#pcur', B).addEventListener('change', e => {
+    if (!rate) { e.target.value = 'usd'; return toast('No hay tasa guardada para usar Bs', 'bad'); }
+    const next = e.target.value;
+    const k = next === 'bs' ? rate : 1 / rate;
+    for (const l of lines) {
+      if (l.cost !== '' && Number.isFinite(l.cost)) l.cost = round4(l.cost * k);
+      if (Number.isFinite(l.price)) l.price = round4(l.price * k);
+    }
+    cur = next; drawLines();
+  });
 
   const addByCode = async code => {
     let p = findByBarcode(code);
@@ -263,42 +282,68 @@ export async function openPurchase() {
   function addLine(p) {
     const ex = lines.find(l => l.pid === p.id);
     if (ex) ex.qty = r3(ex.qty + 1);
-    else lines.push({ pid: p.id, qty: 1, cost: p.cost ?? '', price: p.price });
+    else {
+      const pk = p.packQty > 1 ? p.packQty : 0;
+      lines.push({ pid: p.id, qty: 1, per: pk ? 'pack' : 'unit', pack: pk || '', cost: p.cost != null ? round4(fromUsd(p.cost * (pk || 1))) : '', price: round4(fromUsd(p.price)) });
+    }
     drawLines();
     search.focus();
   }
   function drawLines() {
     const el = $('#plines', B);
     el.innerHTML = !lines.length ? '<p class="muted small">Aún no has añadido productos.</p>' : `<div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>Producto</th><th>Cantidad</th><th>Costo unit. $</th><th>Precio venta $</th><th></th></tr></thead>
-      <tbody>${lines.map((l, i) => { const p = state.products.get(l.pid); return `<tr data-i="${i}">
+      <thead><tr><th>Producto</th><th>Compro por</th><th>Cantidad</th><th>Costo ${cs()}</th><th>Precio venta ${cs()}<div class="muted small">por unidad</div></th><th></th></tr></thead>
+      <tbody>${lines.map((l, i) => { const p = state.products.get(l.pid); const pk = l.per === 'pack'; return `<tr data-i="${i}">
         <td>${esc(p ? p.name : '?')}<div class="muted small">Stock actual ${fmtQty(p ? p.stock ?? 0 : 0, p && p.unit)}</div></td>
-        <td><input class="input sm" data-k="qty" inputmode="decimal" value="${numIn(l.qty, 3)}"></td>
-        <td><input class="input sm" data-k="cost" inputmode="decimal" value="${numIn(l.cost === '' ? null : l.cost, 4)}" placeholder="opcional"></td>
+        <td><select class="input sm" data-k="per"><option value="unit">Unidad</option><option value="pack" ${pk ? 'selected' : ''}>Paquete</option></select>
+          ${pk ? `<div class="small muted">Trae <input class="input sm" data-k="pack" inputmode="decimal" value="${numIn(l.pack || null, 3)}" placeholder="unds" style="width:70px"> unds</div>` : ''}</td>
+        <td><input class="input sm" data-k="qty" inputmode="decimal" value="${numIn(l.qty, 3)}"><div class="muted small" data-u></div></td>
+        <td><input class="input sm" data-k="cost" inputmode="decimal" value="${numIn(l.cost === '' ? null : l.cost, 4)}" placeholder="${pk ? 'del paquete' : 'por unidad'}"><div class="muted small" data-uc></div></td>
         <td><input class="input sm" data-k="price" inputmode="decimal" value="${numIn(l.price, 4)}"></td>
         <td><button class="icon-btn" data-rm aria-label="Quitar">${icon('x')}</button></td></tr>`; }).join('')}</tbody></table></div>`;
     el.querySelectorAll('input[data-k]').forEach(inp => inp.addEventListener('input', () => {
       const l = lines[Number(inp.closest('tr').dataset.i)];
       const v = parseNum(inp.value);
-      l[inp.dataset.k] = inp.dataset.k === 'cost' && inp.value.trim() === '' ? '' : v;
+      l[inp.dataset.k] = (inp.dataset.k === 'cost' || inp.dataset.k === 'pack') && inp.value.trim() === '' ? '' : v;
       drawTotal();
+    }));
+    el.querySelectorAll('select[data-k="per"]').forEach(sel => sel.addEventListener('change', () => {
+      const l = lines[Number(sel.closest('tr').dataset.i)];
+      const pk = Number(l.pack) > 1 ? l.pack : 0;
+      // Mantiene el mismo costo por unidad al pasar de unidad a paquete y al revés.
+      if (pk && l.cost > 0) l.cost = round4(sel.value === 'pack' ? l.cost * pk : l.cost / pk);
+      l.per = sel.value; drawLines();
     }));
     el.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => { lines.splice(Number(b.closest('tr').dataset.i), 1); drawLines(); }));
     drawTotal();
   }
+  // Unidades que entran al stock y costo por unidad de cada línea.
+  const packOf = l => l.per === 'pack' ? Number(l.pack) : 1;
+  const unitsOf = l => r3(l.qty * packOf(l));
+  const unitCostOf = l => l.cost > 0 && packOf(l) > 0 ? l.cost / packOf(l) : null;
   function drawTotal() {
     const t = lines.reduce((s, l) => s + (l.cost > 0 && l.qty > 0 ? l.cost * l.qty : 0), 0);
-    $('#ptotal', B).innerHTML = lines.length ? `Total de la compra: <b>${fmtUsd(t)}</b>` : '';
+    B.querySelectorAll('#plines tr[data-i]').forEach(tr => {
+      const l = lines[Number(tr.dataset.i)], p = state.products.get(l.pid);
+      const ok = l.per !== 'pack' || packOf(l) > 1;
+      $('[data-u]', tr).textContent = l.per === 'pack' ? (!ok ? 'Falta cuántas trae' : l.qty > 0 ? `= ${fmtQty(unitsOf(l), p && p.unit)} unds` : '') : '';
+      const uc = unitCostOf(l);
+      $('[data-uc]', tr).textContent = l.per === 'pack' && ok && uc ? `${fmtCur(uc)} c/u` : cur === 'bs' && uc ? `= ${fmtUsd(toUsd(uc))}` : '';
+    });
+    $('#ptotal', B).innerHTML = lines.length ? `Total de la compra: <b>${fmtCur(t)}</b>${cur === 'bs' ? ` (${fmtUsd(toUsd(t))})` : ''}` : '';
   }
   drawLines();
 
   async function save(close) {
     const valid = lines.filter(l => l.qty > 0);
     if (!valid.length) return toast('Añade al menos un producto', 'bad');
+    const noPack = valid.find(l => l.per === 'pack' && !(packOf(l) > 1));
+    if (noPack) return toast(`Pon cuántas unidades trae el paquete de “${(state.products.get(noPack.pid) || {}).name}”`, 'bad', 4000);
     const day = $('#pdate', B).value || dayKey();
     const purchase = {
       ts: Date.now(), day, supplier: $('#prov', B).value.trim(),
-      items: valid.map(l => ({ pid: l.pid, name: (state.products.get(l.pid) || {}).name, qty: l.qty, cost: l.cost > 0 ? l.cost : null })),
+      items: valid.map(l => ({ pid: l.pid, name: (state.products.get(l.pid) || {}).name, qty: unitsOf(l), cost: unitCostOf(l) ? round4(toUsd(unitCostOf(l))) : null,
+        ...(l.per === 'pack' ? { packs: l.qty, packQty: packOf(l) } : {}) })),
     };
     purchase.totalUsd = r2(purchase.items.reduce((s, i) => s + (i.cost ? i.cost * i.qty : 0), 0));
     try {
@@ -308,9 +353,9 @@ export async function openPurchase() {
         const ps = t.objectStore('products');
         for (const l of valid) {
           const p = await db.P(ps.get(l.pid)); if (!p) continue;
-          adjustStock(p, l.qty);
-          if (l.cost > 0) p.cost = l.cost;
-          if (l.price >= 0 && Number.isFinite(l.price)) p.price = l.price;
+          adjustStock(p, unitsOf(l));
+          if (l.cost > 0) { p.cost = round4(toUsd(unitCostOf(l))); p.packQty = l.per === 'pack' ? packOf(l) : null; }
+          if (l.price >= 0 && Number.isFinite(l.price)) p.price = round4(toUsd(l.price));
           p.updatedAt = Date.now();
           await db.P(ps.put(p)); updated.push(p);
         }
