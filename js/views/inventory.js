@@ -120,8 +120,10 @@ export function openProductForm(prefill = {}) {
         <label class="field"><span>Código de barras</span><span class="row"><input class="input" name="barcode" data-scan-own value="${esc(p.barcode || '')}" inputmode="numeric" placeholder="Escanéalo aquí">${camSupported ? `<button type="button" class="btn" id="pcam" aria-label="Escanear con la cámara">${icon('camera')}</button>` : ''}</span></label>
         <label class="field"><span>Categoría</span><input class="input" name="category" list="catlist" value="${esc(p.category || '')}" placeholder="Ej.: Víveres"><datalist id="catlist">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist></label>
         <label class="field"><span>Se vende por</span><select class="input" name="unit"><option value="und" ${p.unit !== 'kg' ? 'selected' : ''}>Unidad</option><option value="kg" ${p.unit === 'kg' ? 'selected' : ''}>Peso (kg)</option></select></label>
-        <label class="field"><span id="priceLbl">Precio de venta ($) *</span><input class="input" name="price" inputmode="decimal" value="${numIn(p.price, 4)}" placeholder="0,00"><small class="muted" id="priceBs"></small></label>
-        <label class="field"><span>Costo ($) <em class="muted">opcional</em></span><input class="input" name="cost" inputmode="decimal" value="${numIn(p.cost, 4)}" placeholder="Para calcular ganancias"><small class="muted" id="margin"></small></label>
+        <label class="field"><span id="priceLbl">Precio de venta *</span><span class="row"><input class="input" name="price" inputmode="decimal" value="${numIn(p.price, 4)}" placeholder="0,00"><select class="input cur" name="priceCur" aria-label="Moneda del precio"><option value="usd">$</option><option value="bs">Bs</option></select></span><small class="muted" id="priceBs"></small></label>
+        <label class="field"><span>Costo <em class="muted">opcional</em></span><span class="row"><input class="input" name="cost" inputmode="decimal" value="${numIn(p.packQty > 1 && p.cost != null ? p.cost * p.packQty : p.cost, 4)}" placeholder="Para calcular ganancias"><select class="input cur" name="costCur" aria-label="Moneda del costo"><option value="usd">$</option><option value="bs">Bs</option></select></span><small class="muted" id="margin"></small></label>
+        <label class="field"><span>El costo es por</span><select class="input" name="costPer"><option value="unit">Unidad</option><option value="pack" ${p.packQty > 1 ? 'selected' : ''}>Paquete / caja / oferta</option></select></label>
+        <label class="field" id="packF"><span>Unidades que trae</span><input class="input" name="packQty" inputmode="decimal" value="${p.packQty > 1 ? numIn(p.packQty, 3) : ''}" placeholder="Ej.: 100 chicles, 20 harinas"></label>
         <label class="field"><span id="stockLbl">Stock actual</span><input class="input" name="stock" inputmode="decimal" value="${numIn(p.stock, 3)}"></label>
         <label class="field"><span>Avisar si baja de</span><input class="input" name="minStock" inputmode="decimal" value="${numIn(p.minStock, 3)}"></label>
         <label class="field"><span>Fecha de vencimiento <em class="muted">opcional</em></span><input class="input" type="date" name="expiry" value="${esc(p.expiry || '')}"></label>
@@ -131,15 +133,32 @@ export function openProductForm(prefill = {}) {
     const f = m.body.querySelector('form');
     const F = n => f.elements[n];
     const rate = activeRate();
+    // Precio y costo se pueden escribir en $ o Bs; se guardan siempre en $ (costo por unidad).
+    const toUsd = (v, cur) => cur === 'bs' ? (rate ? v / rate : NaN) : v;
+    const priceUsd = () => toUsd(parseNum(F('price').value), F('priceCur').value);
+    const pack = () => { const n = parseNum(F('packQty').value); return F('costPer').value === 'pack' ? n : 1; };
+    const unitCost = () => toUsd(parseNum(F('cost').value), F('costCur').value) / pack();
     const upd = () => {
-      const pr = parseNum(F('price').value), co = parseNum(F('cost').value);
+      const pr = priceUsd(), co = unitCost(), bsP = F('priceCur').value === 'bs';
       const kg = F('unit').value === 'kg';
-      $('#priceLbl', f).textContent = kg ? 'Precio por kg ($) *' : 'Precio de venta ($) *';
+      $('#priceLbl', f).textContent = kg ? 'Precio por kg *' : 'Precio de venta *';
       $('#stockLbl', f).textContent = kg ? 'Stock actual (kg)' : 'Stock actual';
-      $('#priceBs', f).textContent = pr > 0 && rate ? `= ${fmtBs(pr * rate)} a la tasa actual` : '';
-      $('#margin', f).textContent = pr > 0 && co > 0 ? `Ganancia: ${fmtUsd(pr - co)} (${Math.round((pr - co) / co * 100)}% sobre costo)` : '';
+      $('#packF', f).hidden = F('costPer').value !== 'pack';
+      $('#priceBs', f).textContent = !(pr > 0) ? '' : bsP ? `= ${fmtUsd(pr)} (se guarda en $; en Bs cambiará con la tasa)` : rate ? `= ${fmtBs(pr * rate)} a la tasa actual` : '';
+      const costTxt = co > 0 && pack() > 1 ? `= ${fmtUsd(co)} por unidad. ` : co > 0 && F('costCur').value === 'bs' ? `= ${fmtUsd(co)}. ` : '';
+      $('#margin', f).textContent = costTxt + (pr > 0 && co > 0 ? `Ganancia: ${fmtUsd(pr - co)} (${Math.round((pr - co) / co * 100)}% sobre costo)` : '');
     };
+    // Al cambiar de moneda se convierte la cifra escrita para que siga siendo el mismo importe.
+    for (const [inp, sel] of [['price', 'priceCur'], ['cost', 'costCur']]) {
+      F(sel).addEventListener('change', () => {
+        if (!rate) { F(sel).value = 'usd'; return toast('No hay tasa guardada para convertir a Bs', 'bad'); }
+        const v = parseNum(F(inp).value);
+        if (v > 0) F(inp).value = numIn(F(sel).value === 'bs' ? v * rate : v / rate, F(sel).value === 'bs' ? 2 : 4);
+        upd();
+      });
+    }
     f.addEventListener('input', upd);
+    f.addEventListener('change', upd);
     f.addEventListener('submit', e => { e.preventDefault(); save(); });
     F('barcode').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); F('name').value ? F('price').focus() : F('name').focus(); } });
     const pc = $('#pcam', f);
@@ -150,16 +169,19 @@ export function openProductForm(prefill = {}) {
 
     async function save() {
       const name = F('name').value.trim();
-      const price = parseNum(F('price').value);
+      const price = Math.round(priceUsd() * 10000) / 10000;
       if (!name) return toast('Falta el nombre', 'bad');
       if (!(price >= 0)) return toast('Precio no válido', 'bad');
+      const isPack = F('costPer').value === 'pack' && F('cost').value.trim();
+      if (isPack && !(pack() > 1)) return toast('Pon cuántas unidades trae el paquete', 'bad');
       const barcode = F('barcode').value.trim();
       const dup = barcode && findByBarcode(barcode);
       if (dup && dup.id !== p.id) return toast(`Ese código ya es de “${dup.name}”`, 'bad', 4000);
-      const cost = parseNum(F('cost').value), stock = parseNum(F('stock').value), minStock = parseNum(F('minStock').value);
+      const cost = Math.round(unitCost() * 10000) / 10000, stock = parseNum(F('stock').value), minStock = parseNum(F('minStock').value);
       const obj = {
         ...(isNew ? { createdAt: Date.now() } : state.products.get(p.id) || p),
-        name, price: r2(price) === price ? price : Math.round(price * 10000) / 10000,
+        name, price,
+        packQty: isPack ? pack() : null,
         category: F('category').value.trim(),
         unit: F('unit').value,
         cost: cost >= 0 ? cost : null,

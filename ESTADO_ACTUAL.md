@@ -1,6 +1,6 @@
 # JANAJ Bodega — Estado actual
 
-_Última actualización: 21 de noviembre de 2026 · versión `janaj-v1.2.1`_
+_Última actualización: 24 de noviembre de 2026 · versión `janaj-v1.3.0`_
 
 ## Qué es
 
@@ -92,11 +92,14 @@ js/views/import.js     importar/exportar productos en CSV (Excel)
    - Si el producto ya existe (mismo código o, si no tiene código, mismo nombre) se actualiza; si no, se crea. Las celdas vacías no borran nada.
    - Antes de guardar enseña cuántos productos se crean, cuántos se actualizan y qué filas tienen errores (sin precio, fecha imposible, código estropeado por Excel `7,59E+12`, repetidos). Las filas con error se saltan.
    - Incluye plantilla descargable y exportación de los productos actuales, para editarlos en Excel y volver a importarlos.
+7. **24 nov 2026 · v1.3.0**:
+   - Icono "maskable" con margen (`icons/icon-maskable-*.png`) para que no se corte en el círculo de Android.
+   - Ficha de producto: precio y costo se pueden escribir en $ o Bs (se guardan en $ a la tasa actual). El costo puede ser por unidad o por paquete/caja/oferta indicando cuántas unidades trae; se guarda el costo por unidad y `packQty`.
+   - Sincronización probada entre ordenador y móvil: funciona.
 
 ## Qué falta
 
 ### Puesta en marcha
-- [ ] Crear la cuenta de la bodega en el ordenador (Ajustes → "Crear cuenta de la bodega"), entrar desde el móvil con la misma cuenta y comprobar que una venta aparece en los dos.
 - [ ] Probar la importación con la lista real de productos del dueño.
 
 ### Pendiente con el dueño o el contable

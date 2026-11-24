@@ -299,3 +299,8 @@ select.input { padding-right: 28px; }
   .big { white-space: nowrap; }
 }
 @media (max-width: 420px) { .rchip:nth-child(n+2) { display: none; } }
+
+/* Selector de moneda junto a precio y costo */
+.input.cur { width: auto; flex: none; padding-right: 26px; }
+.row > .input:not(.cur) { flex: 1; min-width: 0; }
+.field[hidden] { display: none; }
