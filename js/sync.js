@@ -5,7 +5,7 @@ import * as db from './db.js';
 import { state, cacheProduct, uncacheProduct, mergeProduct, applySettings, loadAll, saveCart, onCartSave } from './store.js';
 import { firebaseConfig } from './firebase-config.js';
 
-export const sync = { status: 'off', user: null, lastSync: null, pending: 0, error: null };
+export const sync = { status: 'off', user: null, lastSync: null, pending: 0, error: null, cart: { status: 'off', error: null, lastIn: null, lastOut: null } };
 let remote = null, unsub = null, pushing = false, pushAgain = false, timer = null;
 const emit = () => document.dispatchEvent(new CustomEvent('sync-status'));
 
@@ -57,10 +57,12 @@ function applyCart() {
 function watchCart() {
   if (unsubCart) unsubCart();
   if (!remote.watchCart) return;
+  sync.cart.status = 'connecting';
   unsubCart = remote.watchCart(c => {
-    if (c.dev === state.deviceId) return;
-    remoteCart = c; applyCart();
-  }, () => {});
+    sync.cart.status = 'ok'; sync.cart.error = null;
+    if (c && c.dev !== state.deviceId) { sync.cart.lastIn = Date.now(); remoteCart = c; applyCart(); }
+    emit();
+  }, e => { sync.cart.status = 'error'; sync.cart.error = e.message; emit(); console.warn('Carrito en vivo:', e); });
 }
 onCartSave(cart => {
   remoteCart = null;
@@ -68,7 +70,9 @@ onCartSave(cart => {
   clearTimeout(cartTimer);
   cartTimer = setTimeout(() => {
     const lines = JSON.parse(JSON.stringify(state.cart));
-    remote.putCart({ lines, dev: state.deviceId, at: Date.now() }).catch(() => {});
+    remote.putCart({ lines, dev: state.deviceId, at: Date.now() })
+      .then(() => { sync.cart.lastOut = Date.now(); sync.cart.error = null; emit(); })
+      .catch(e => { sync.cart.status = 'error'; sync.cart.error = e.message; emit(); console.warn('Carrito en vivo:', e); });
   }, 250);
 });
 

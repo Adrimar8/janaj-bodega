@@ -19,7 +19,7 @@ export async function createRemote(config) {
   return {
     putCart: c => fsM.setDoc(cartRef(), c),
     watchCart: (onCart, onErr) => fsM.onSnapshot(cartRef(), d => {
-      if (d.exists() && !d.metadata.hasPendingWrites) onCart(d.data());
+      if (!d.metadata.hasPendingWrites) onCart(d.exists() ? d.data() : null);
     }, onErr),
     currentUser: () => new Promise(res => { const off = authM.onAuthStateChanged(auth, u => { off(); res(toUser(u)); }); }),
     signUp: async (e, p) => toUser((await authM.createUserWithEmailAndPassword(auth, e, p)).user),

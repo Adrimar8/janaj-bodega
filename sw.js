@@ -1,5 +1,5 @@
 // Service worker: guarda la app en el equipo para que abra sin internet.
-const VERSION = 'janaj-v1.4.0';
+const VERSION = 'janaj-v1.4.1';
 const FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/main.js', 'js/db.js', 'js/ui.js', 'js/store.js', 'js/scanner.js', 'js/sync.js', 'js/remote-firebase.js', 'js/firebase-config.js',

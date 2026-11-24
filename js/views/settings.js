@@ -61,11 +61,16 @@ export async function renderSettings(main) {
     </div>
 
     <div class="card"><h2>Acerca de</h2>
-      <p class="small">JANAJ Bodega · versión 1.1 · funciona sin internet. Los datos no salen de este equipo.</p>
+      <p class="small">JANAJ Bodega · versión <b id="appVer">…</b> · funciona sin internet. Los datos se guardan en este equipo y, si la sincronización está activada, también en la cuenta de la bodega.</p>
     </div>
   </div>`;
 
   drawSync(main);
+  // La versión es la del service worker activo (la caché se llama janaj-vX.Y.Z).
+  if (window.caches) caches.keys().then(k => {
+    const v = k.filter(x => x.startsWith('janaj-v')).pop(), a = $('#appVer', main);
+    if (a) a.textContent = v ? v.replace('janaj-v', '') : 'sin instalar';
+  }).catch(() => {});
   const onSync = () => { if ($('#syncCard', main)) drawSync(main); else document.removeEventListener('sync-status', onSync); };
   document.addEventListener('sync-status', onSync);
 
@@ -163,6 +168,8 @@ function drawSync(main) {
     <p class="small">Cuenta: <b>${esc(sync.user ? sync.user.email : '')}</b></p>
     <p class="small"><span class="pill ${st === 'ok' ? 'ok' : st === 'offline' ? 'warn' : 'bad'}">${label}</span>
       ${sync.lastSync ? `<span class="muted"> · última vez ${fmtDateTime(sync.lastSync)}</span>` : ''}</p>
+    <p class="small">Carrito en vivo: ${sync.cart.status === 'ok' ? '<span class="pill ok">conectado</span>' : sync.cart.status === 'error' ? `<span class="pill bad">Error: ${esc(sync.cart.error || '')}</span>` : '<span class="pill warn">conectando…</span>'}
+      <span class="muted">${sync.cart.lastOut ? ` · enviado ${fmtDateTime(sync.cart.lastOut)}` : ''}${sync.cart.lastIn ? ` · recibido ${fmtDateTime(sync.cart.lastIn)}` : ''}</span></p>
     <div class="row gap"><button class="btn" id="sNow">${icon('refresh')} Sincronizar ahora</button><button class="btn ghost danger" id="sOut">Cerrar sesión en este equipo</button></div>`;
   $('#sNow', el).addEventListener('click', () => { push(); toast('Sincronizando…'); });
   $('#sOut', el).addEventListener('click', async () => {

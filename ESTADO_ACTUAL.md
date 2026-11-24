@@ -1,6 +1,6 @@
 # JANAJ Bodega — Estado actual
 
-_Última actualización: 24 de noviembre de 2026 · versión `janaj-v1.4.0`_
+_Última actualización: 24 de noviembre de 2026 · versión `janaj-v1.4.1`_
 
 ## Qué es
 
